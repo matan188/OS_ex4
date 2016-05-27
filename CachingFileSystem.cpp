@@ -506,8 +506,6 @@ int caching_rename(const char *path, const char *newpath){
         return -errno;
     }
 
-
-
     // rename block in cache
     //lru.printLru();
     CDE * cde = lru.getHead();
@@ -515,7 +513,7 @@ int caching_rename(const char *path, const char *newpath){
         string fileName = cde->getFileName();
         int pos = fileName.find(string(path));
         //cout << "fileName: " << fileName << " pos: " << pos << endl;
-        if(pos == 0) {
+        if(pos == 0 && (fileName[string(path).length() - 1] == '/' || fileName.length() == string(path).length())) {
 
             string suffix = fileName.substr(string(path).length(), fileName.length());
 

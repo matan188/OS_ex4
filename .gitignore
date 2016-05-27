@@ -1,2 +1,5 @@
 mountdir/*
 rootdir/*
+.idea
+caching
+cache.log
