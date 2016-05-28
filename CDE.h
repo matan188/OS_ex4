@@ -11,7 +11,6 @@ using namespace std;
 class CDE {
 private:
     int _count;
-    size_t _dataSize;
     CDE * _countPrev;
     CDE * _countNext;
     CDE * _prev;
@@ -20,8 +19,9 @@ private:
     int _blockId;
     string _fileName;
     char * _blockData;
+    size_t _dataSize;
 public:
-    CDE(int blockId, string fileName, char * blockData, size_t dataSize);
+    CDE(int blockId, string fileName, size_t dataSize, char * blockData);
     ~CDE();
 
     char * getData() { return _blockData; };

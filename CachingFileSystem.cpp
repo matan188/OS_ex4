@@ -304,7 +304,7 @@ int caching_read(const char *path, char *buf, size_t size,
 
         int readSize = 0;
         int x = blockSize * currentBlock;
-        if(offset >= cde->getSize() + x) {
+        if((size_t) offset >= cde->getSize() + x) {
             //cout << "RETURN: 0" << endl;
             return 0;
         } else if(offset + size < cde->getSize() + x) {
@@ -337,7 +337,7 @@ int caching_read(const char *path, char *buf, size_t size,
             return 0;
         }
 
-        cacheMap[{fileName, currentBlock}] = new CDE(currentBlock, fileName, blockData, b);
+        cacheMap[{fileName, currentBlock}] = new CDE(currentBlock, fileName, b, blockData);
 
         CDE* cde = cacheMap[{fileName, currentBlock}];
 
@@ -347,7 +347,7 @@ int caching_read(const char *path, char *buf, size_t size,
         // add the new cde (which has count of 1 to CountChain[0]
         countChain.insert(cde, 1);
 
-        if(lru.getSize() < numberOfBlocks) {
+        if((int) lru.getSize() < numberOfBlocks) {
             // there is empty place in cache
             lru.insert(cde);
             cde->setIsNew(true);

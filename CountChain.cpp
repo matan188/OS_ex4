@@ -37,9 +37,9 @@ void CountChain::increment(CDE * cde) {
     //cout << "\t$ increment"<< endl;
     if(!cde->getIsNew()) { // increase only if not new
         int count = cde->getCount();
-        if(count <= _countChain.size()) {
+        if((size_t) count <= _countChain.size()) {
             remove(cde);
-            if(count < _countChain.size()) {
+            if((size_t) count < _countChain.size()) {
                 insert(cde, count + 1);
             }
         }
@@ -51,7 +51,7 @@ void CountChain::increment(CDE * cde) {
 
 void CountChain::remove(CDE * cde) {
     //cout << "\t$ remove "<< cde->getFileName() << endl;
-    if(cde->getCount() > _countChain.size()) {
+    if((size_t) cde->getCount() > _countChain.size()) {
         return;
     }
     if(cde->getCountPrev() != nullptr) {
@@ -86,7 +86,7 @@ CDE * CountChain::getItemToRemove() {
 void CountChain::printCountChain() {
     cout << "print count" << endl;
 
-    for(int i = 0; i < _countChain.size(); ++i) {
+    for(int i = 0; i < (int) _countChain.size(); ++i) {
         CDE * cde = _countChain.at(i)->first;
         cout << "\t(" << i + 1 << ") : ";
 

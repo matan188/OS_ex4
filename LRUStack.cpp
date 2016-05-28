@@ -27,15 +27,15 @@ void LRUStack::insert(CDE * newCde) {
     _head = newCde;
 
     ++_size;
-    if(_size == _newIndex) {
+    if(_size == (size_t) _newIndex) {
         _newBoundary = _tail;
-    } else if(_size == _oldIndex) {
+    } else if(_size == (size_t) _oldIndex) {
         _oldBoundary = _tail;
         _oldBoundary->setIsOld(true);
         _oldBoundary->setIsNew(false);
     }
 
-    if(_size > _newIndex) {
+    if(_size > (size_t) _newIndex) {
         _newBoundary->setIsNew(false);
         _newBoundary = _newBoundary->getPrev();
     }
