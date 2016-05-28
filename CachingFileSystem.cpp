@@ -27,8 +27,9 @@
 using namespace std;
 
 #define CMAX 3 // the maximum count list value
-#define USAGE_ERROR "Usage: CachingFileSystem rootdir mountdir numberOfBlocks fOld fNew\n"
-#define FILE_LOCATION ".filesystem.log"
+#define USAGE_ERROR "Usage: CachingFileSystem " \
+                    "rootdir mountdir numberOfBlocks fOld fNew\n"
+#define FILE_LOCATION "/.filesystem.log"
 
 struct fuse_operations caching_oper;
 
@@ -37,6 +38,7 @@ struct {
 } typedef user_data;
 
 static char* rootDir;
+static char logPath[PATH_MAX];
 static int blockSize;
 static map<pair<string, int>, CDE*> cacheMap;
 static LRUStack lru;
@@ -79,7 +81,8 @@ bool isInputParamsValid(int argc, char* argv[]) {
         double fNew = atof(argv[5]);
 
         // check params are valid
-        if(fOld <= 0 || fOld >= 1 || fNew <= 0 || fNew >= 1 || fOld + fNew > 1) {
+        if(fOld <= 0 || fOld >= 1 || fNew <= 0 ||
+                fNew >= 1 || fOld + fNew > 1) {
             usage_error = true;
             //cout << "2" << endl;
         } else if(numberOfBlocks < 0) {
@@ -94,7 +97,7 @@ bool isInputParamsValid(int argc, char* argv[]) {
         }
     }
     if(usage_error) {
-        cout << USAGE_ERROR << endl;
+        //cout << USAGE_ERROR << endl;
     }
     return !usage_error;
 }
@@ -106,7 +109,7 @@ void sysError(std::string errFunc) {
 }
 
 void writeToLog(string msg) {
-    logFile.open(FILE_LOCATION, std::ios_base::app);
+    logFile.open(logPath, std::ios_base::app);
     if(logFile.fail()) {
         sysError("open");
     }
@@ -289,7 +292,6 @@ int caching_read(const char *path, char *buf, size_t size,
 
     //TODO what if offset + size > file_size?
 
-    //cout << "<filename: "<< fileName << ", currentBlock: " << currentBlock << ">" << endl;
     if(cacheMap.count({fileName, currentBlock}) > 0) {
         // cache hit
         //cout << "<cache hit>" << endl;
@@ -327,7 +329,8 @@ int caching_read(const char *path, char *buf, size_t size,
     } else {
         // cache miss
         //cout << "<cache miss>" << endl;
-        char* blockData = (char *) aligned_alloc(blockSize, blockSize * sizeof(char));
+        char* blockData = (char *) aligned_alloc(blockSize,
+                                                 blockSize * sizeof(char));
         b = pread((int) fi->fh, (void *) blockData, (size_t) blockSize, offset);
         //cout << "bytes read: " << b << endl;
         if(b < 0) {
@@ -337,7 +340,8 @@ int caching_read(const char *path, char *buf, size_t size,
             return 0;
         }
 
-        cacheMap[{fileName, currentBlock}] = new CDE(currentBlock, fileName, b, blockData);
+        cacheMap[{fileName, currentBlock}] = new CDE(currentBlock,
+                                                     fileName, b, blockData);
 
         CDE* cde = cacheMap[{fileName, currentBlock}];
 
@@ -358,7 +362,7 @@ int caching_read(const char *path, char *buf, size_t size,
                 lru.insert(cde);
             }
         }
-        strncpy(buf, cde->getData(), (size_t) b);
+        memcpy(buf, cde->getData(), (size_t) b);
         //cout << "RETURN: " << b << endl;
         return (int) b;
     }
@@ -507,39 +511,23 @@ int caching_rename(const char *path, const char *newpath){
     }
 
     // rename block in cache
-    //lru.printLru();
     CDE * cde = lru.getHead();
     while(cde != nullptr) {
         string fileName = cde->getFileName();
         int pos = fileName.find(string(path));
-        //cout << "fileName: " << fileName << " pos: " << pos << endl;
-        if(pos == 0 && (fileName[string(path).length() - 1] == '/' || fileName.length() == string(path).length())) {
+        if(pos == 0 && (fileName[string(path).length() - 1] == '/' ||
+                fileName.length() == string(path).length())) {
 
-            string suffix = fileName.substr(string(path).length(), fileName.length());
+            string suffix = fileName.substr(string(path).length(),
+                                            fileName.length());
 
             string realNewPath = string(newpath) + suffix;
-            //cout << "%%%%%% realNewPath: " << realNewPath << endl;
-            // block was in cache. need to be renamed
             cde->setFileName(realNewPath);
             cacheMap[{realNewPath, cde->getBlockId()}] = cde;
             cacheMap.erase({string(path), cde->getBlockId()});
         }
         cde = cde->getNext();
     }
-    //lru.printLru();
-    /*
-    for(int i = 0; i < blocksInFile; ++i) {
-        // rename block if it's in cache
-        if(cacheMap.count({path, i}) > 0) {
-            // block was in cache. need to be renamed
-            CDE * cde = cacheMap[{path, i}];
-            cde->setFileName(string(newpath));
-            cacheMap[{newpath, i}] = cde;
-            cacheMap.erase({path, i});
-        }
-    }
-     */
-
     return ret;
 }
 
@@ -656,11 +644,14 @@ int main(int argc, char* argv[]){
     blockSize = getBlockSize();
     rootDir = realpath(argv[1], NULL);
 
+    strcat(logPath, rootDir);
+    strcat(logPath, FILE_LOCATION);
 
     numberOfBlocks = atoi(argv[3]);
 
     lru.setNewIndex((int) (atof(argv[5]) * numberOfBlocks));
-    lru.setOldIndex(numberOfBlocks - (int) (atof(argv[4]) * numberOfBlocks) + 1);
+    lru.setOldIndex(numberOfBlocks - (int) (atof(argv[4]) *
+            numberOfBlocks) + 1);
 
 
     // arrange args for fuse_main call
@@ -674,8 +665,6 @@ int main(int argc, char* argv[]){
 
 
 	int fuse_stat = fuse_main(argc, argv, &caching_oper, NULL);
-
-
     free(rootDir);
 	return fuse_stat;
 }

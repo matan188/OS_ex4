@@ -14,6 +14,15 @@ LRUStack::LRUStack() {
     _oldBoundary = nullptr;
 }
 
+LRUStack::~LRUStack() {
+    CDE * cde = _head;
+    while(cde != nullptr) {
+        CDE* tmpCde = cde;
+        cde = cde->getNext();
+        delete tmpCde;
+    }
+}
+
 void LRUStack::insert(CDE * newCde) {
 
     //cout << "\t<< lru insert >>" << endl;
@@ -114,8 +123,10 @@ void LRUStack::reinsert(CDE * cde) {
 void LRUStack::printLru() {
     CDE * cde = _head;
     if( _head != nullptr && _tail != nullptr) {
-        cout << "\thead: <" << _head->getFileName() << "," << _head->getBlockId() << ">" << endl;
-        cout << "\ttail: <" << _tail->getFileName() << "," << _tail->getBlockId() << ">" << endl;
+        cout << "\thead: <" << _head->getFileName() << ","
+            << _head->getBlockId() << ">" << endl;
+        cout << "\ttail: <" << _tail->getFileName() << ","
+            << _tail->getBlockId() << ">" << endl;
         cout << "\t";
     }
 
@@ -127,7 +138,8 @@ void LRUStack::printLru() {
         if(cde == _oldBoundary) {
             cout << "ob, ";
         }
-        cout << cde->getFileName() << "," << cde->getBlockId() << "," << cde->getIsNew() <<"," << cde->getIsOld() << ">" << " -> ";
+        cout << cde->getFileName() << "," << cde->getBlockId() << ","
+            << cde->getIsNew() <<"," << cde->getIsOld() << ">" << " -> ";
         cde = cde->getNext();
     }
     cout << endl;

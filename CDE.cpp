@@ -1,10 +1,11 @@
 #include <cstring>
 #include "CDE.h"
 
-CDE::CDE(int blockId, string fileName, size_t dataSize, char * blockData): _blockId(blockId),
-                                                             _fileName(fileName), _dataSize(dataSize) {
+CDE::CDE(int blockId, string fileName, size_t dataSize,
+         char * blockData): _blockId(blockId), _fileName(fileName),
+                            _dataSize(dataSize) {
     _blockData = (char *) malloc(sizeof(char)*dataSize);
-    strncpy(_blockData, blockData, dataSize);
+    memcpy(_blockData, blockData, dataSize);
     _isOld = false;
     _isNew = true;
     _count = 1;

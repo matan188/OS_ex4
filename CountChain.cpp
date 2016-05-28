@@ -25,7 +25,7 @@ void CountChain::insert(CDE * cde, int pos) {
         head->setCountPrev(cde);
     }
     _countChain.at(pos)->first = cde;
-    cout << _countChain.at(1)->first << endl;
+    //cout << _countChain.at(1)->first << endl;
 
     if(tail == nullptr) {
         _countChain.at(pos)->second = cde;

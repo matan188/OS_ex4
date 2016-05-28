@@ -18,7 +18,7 @@ private:
     int _newIndex, _oldIndex;
 public:
     LRUStack();
-    ~LRUStack(){};
+    ~LRUStack();
 
     size_t getSize() { return _size; };
     void insert(CDE * cde);
