@@ -84,7 +84,7 @@ CDE * CountChain::getItemToRemove() {
 }
 
 void CountChain::printCountChain() {
-    cout << "print count" << endl;
+    //cout << "print count" << endl;
 
     for(int i = 0; i < (int) _countChain.size(); ++i) {
         CDE * cde = _countChain.at(i)->first;

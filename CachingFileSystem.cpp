@@ -28,7 +28,7 @@ using namespace std;
 
 #define CMAX 3 // the maximum count list value
 #define USAGE_ERROR "Usage: CachingFileSystem rootdir mountdir numberOfBlocks fOld fNew\n"
-#define FILE_LOCATION "cache.log"
+#define FILE_LOCATION ".filesystem.log"
 
 struct fuse_operations caching_oper;
 
@@ -292,7 +292,7 @@ int caching_read(const char *path, char *buf, size_t size,
     //cout << "<filename: "<< fileName << ", currentBlock: " << currentBlock << ">" << endl;
     if(cacheMap.count({fileName, currentBlock}) > 0) {
         // cache hit
-        cout << "<cache hit>" << endl;
+        //cout << "<cache hit>" << endl;
         cde = cacheMap[{fileName, currentBlock}];
         //cout << "01" << endl;
         /*
@@ -326,7 +326,7 @@ int caching_read(const char *path, char *buf, size_t size,
         return (int) readSize;
     } else {
         // cache miss
-        cout << "<cache miss>" << endl;
+        //cout << "<cache miss>" << endl;
         char* blockData = (char *) aligned_alloc(blockSize, blockSize * sizeof(char));
         b = pread((int) fi->fh, (void *) blockData, (size_t) blockSize, offset);
         //cout << "bytes read: " << b << endl;
@@ -669,8 +669,8 @@ int main(int argc, char* argv[]){
 		argv[i] = NULL;
 	}
 	argv[2] = (char*) "-s";
-    argv[3] = (char*) "-f";
-	argc = 4;
+    //argv[3] = (char*) "-f";
+	argc = 3;
 
 
 	int fuse_stat = fuse_main(argc, argv, &caching_oper, NULL);
