@@ -279,21 +279,18 @@ int caching_read(const char *path, char *buf, size_t size,
     CDE * cde;
     ssize_t b = 0;
     string fileName = string(path);
-
     int readTotal = 0;
     off_t newOffset;
     bool firstRead = true;
     //TODO what if offset + size > file_size?
     while(true) { // will end when pread returns 0
         newOffset = offset + (off_t) readTotal;
-
         if(newOffset%blockSize != 0  && !firstRead){
             return readTotal;
         }
 
         if(cacheMap.count({fileName, currentBlock}) > 0) {
             // cache hit
-            cout << "hit" << endl;
             cde = cacheMap[{fileName, currentBlock}];
 
             int readSize = 0;
@@ -308,18 +305,18 @@ int caching_read(const char *path, char *buf, size_t size,
 
             int inBlockOffset = (int) newOffset - currentBlock * blockSize;
 
-            memcpy(buf + readTotal, cde->getData() + inBlockOffset, (size_t) readSize);
+            memcpy(buf + readTotal, cde->getData() + inBlockOffset,
+                   (size_t) readSize);
             countChain.increment(cde);
             lru.reinsert(cde);
             readTotal += readSize;
         } else {
             // cache miss
-            cout << "miss" << endl;
             char *blockData = (char *) aligned_alloc(blockSize,
                                                      blockSize * sizeof(char));
-            newOffset -= newOffset%blockSize;
+            off_t tmpOffset = newOffset - newOffset%blockSize;
             b = pread((int) fi->fh, (void *) blockData, (size_t) blockSize,
-                       newOffset);
+                      tmpOffset);
             if (b < 0) {
                 cout << "errno: " << errno << endl;
             } else if (b == 0) {
@@ -348,18 +345,7 @@ int caching_read(const char *path, char *buf, size_t size,
                     lru.insert(cde);
                 }
             }
-/*
-            size_t inBlockOffset = (size_t) newOffset%blockSize;
 
-            size_t y = b - inBlockOffset;
-            size_t z = readTotal + y;
-            if(z > size) {
-                y = size - readTotal;
-            }
-
-            memcpy(buf + readTotal, cde->getData() + inBlockOffset,
-                   (size_t) y);
-*/
             int readSize = 0;
             int x = blockSize * currentBlock;
             if((size_t) newOffset >= cde->getSize() + x) {
@@ -371,8 +357,8 @@ int caching_read(const char *path, char *buf, size_t size,
             }
             cout << readSize << endl;
             int inBlockOffset = (int) newOffset - currentBlock * blockSize;
-
-            memcpy(buf + readTotal, cde->getData() + inBlockOffset, (size_t) readSize);
+            memcpy(buf + readTotal, cde->getData() + inBlockOffset,
+                   (size_t) readSize);
             readTotal += readSize;
             ++currentBlock;
         }
@@ -681,8 +667,8 @@ int main(int argc, char* argv[]){
 		argv[i] = NULL;
 	}
 	argv[2] = (char*) "-s";
-    argv[3] = (char*) "-f";
-	argc = 4;
+    //argv[3] = (char*) "-f";
+	argc = 3;
 
 
 	int fuse_stat = fuse_main(argc, argv, &caching_oper, NULL);
