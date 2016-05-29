@@ -54,23 +54,27 @@ static int numberOfBlocks;
 std::ofstream logFile;
 std::stringstream logBuffer;
 
+/* Return the System block size*/
 static int getBlockSize() {
     struct stat fi;
     stat("/tmp", &fi);
     return (int) fi.st_blksize;
 }
 
+/* Build absolute path from relative */
 static void buildPath(char fpath[PATH_MAX], const char *path) {
     strcpy(fpath, rootDir);
     strncat(fpath, path, PATH_MAX);
 }
 
+/*
+ * Check that the given parameters are valid
+ */
 bool isInputParamsValid(int argc, char* argv[]) {
     // Usage error
     bool usage_error = false;
     if(argc != 6) {
         usage_error = true;
-        //cout << "1" << endl;
     } else {
         struct stat sb;
         // fetch params
@@ -84,30 +88,32 @@ bool isInputParamsValid(int argc, char* argv[]) {
         if(fOld <= 0 || fOld >= 1 || fNew <= 0 ||
                 fNew >= 1 || fOld + fNew > 1) {
             usage_error = true;
-            //cout << "2" << endl;
         } else if(numberOfBlocks < 0) {
             usage_error = true;
-            //cout << "3" << endl;
         } else if(stat(rootdir, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
             usage_error = true;
-            //cout << "4" << endl;
         } else if(stat(mountdir, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
             usage_error = true;
-            //cout << "5" << endl;
         }
     }
     if(usage_error) {
-        //cout << USAGE_ERROR << endl;
+        cout << USAGE_ERROR << endl;
     }
     return !usage_error;
 }
 
+/*
+ * Print system errors to cerr.
+ */
 void sysError(std::string errFunc) {
     std::cerr << "System Error: " <<
     errFunc << " failed." << std::endl;
     exit(1);
 }
 
+/**
+ * Write commands to log.
+ */
 void writeToLog(string msg) {
     logFile.open(logPath, std::ios_base::app);
     if(logFile.fail()) {
@@ -128,32 +134,19 @@ void writeToLog(string msg) {
     }
 }
 
-int calcNumberOfBlocks(int size, int offset) {
-    int n = 0;
-    if(size == 0) {
-        return 0;
-    }
-    if(offset % blockSize != 0) {
-        n += 1;
-        size -= blockSize - (offset % blockSize);
-    }
-    n += ceil(size / (double) blockSize);
-    return n;
-}
 
+/**
+ * Remove block from cache
+ */
 void removeFromCache() {
-    //cout << "01" << endl;
     CDE * cde = countChain.getItemToRemove();
-    //cout << "02" << endl;
     if(cde == nullptr) {
        cde = lru.getTail();
     }
-    //cout << "03" << endl;
     lru.remove(cde);
     countChain.remove(cde);
     string fileName = cde->getFileName();
     int blockId = cde->getBlockId();
-    //cout << "04" << endl;
     cacheMap.erase({fileName, blockId});
     delete cde;
 }
@@ -171,7 +164,6 @@ int caching_getattr(const char *path, struct stat *statbuf){
     char fpath[PATH_MAX];
     buildPath(fpath, path);
     int ret = stat(fpath, statbuf);
-    //cout << statbuf->st_size << endl;
     if(ret != 0) {
         return -errno;
     }
@@ -283,88 +275,108 @@ int caching_open(const char *path, struct fuse_file_info *fi){
 int caching_read(const char *path, char *buf, size_t size, 
 				off_t offset, struct fuse_file_info *fi){
     writeToLog("read");
-    //cout << "size: " << size << endl;
-    //cout << "offset: " << offset << endl;
     int currentBlock = (int) offset / blockSize;
     CDE * cde;
     ssize_t b = 0;
     string fileName = string(path);
 
+    int readTotal = 0;
+    off_t newOffset;
+    bool firstRead = true;
     //TODO what if offset + size > file_size?
+    while(true) { // will end when pread returns 0
+        newOffset = offset + (off_t) readTotal;
 
-    if(cacheMap.count({fileName, currentBlock}) > 0) {
-        // cache hit
-        //cout << "<cache hit>" << endl;
-        cde = cacheMap[{fileName, currentBlock}];
-        //cout << "01" << endl;
-        /*
-        if(currentBlock * blockSize + cde->getSize() <= offset) {
-            cout << "RETURN: 0" << endl;
-            return 0;
-        }
-        */
-
-        int readSize = 0;
-        int x = blockSize * currentBlock;
-        if((size_t) offset >= cde->getSize() + x) {
-            //cout << "RETURN: 0" << endl;
-            return 0;
-        } else if(offset + size < cde->getSize() + x) {
-            readSize = (int) size;
-        } else {
-            readSize = (cde->getSize() + x) - (int) offset;
+        if(newOffset%blockSize != 0  && !firstRead){
+            return readTotal;
         }
 
-        int inBlockOffset = (int) offset - currentBlock * blockSize;
-        /*
-        if(size > blockSize - inBlockOffset) {
-            size = (size_t) blockSize - inBlockOffset;
-        }
-        */
-        strncpy(buf, cde->getData() + inBlockOffset, (size_t) readSize);
-        countChain.increment(cde);
-        lru.reinsert(cde);
-        //cout << "RETURN: " << readSize << endl;
-        return (int) readSize;
-    } else {
-        // cache miss
-        //cout << "<cache miss>" << endl;
-        char* blockData = (char *) aligned_alloc(blockSize,
-                                                 blockSize * sizeof(char));
-        b = pread((int) fi->fh, (void *) blockData, (size_t) blockSize, offset);
-        //cout << "bytes read: " << b << endl;
-        if(b < 0) {
-            cout << "errno: " << errno << endl;
-        } else if(b == 0) {
-            free(blockData);
-            return 0;
-        }
+        if(cacheMap.count({fileName, currentBlock}) > 0) {
+            // cache hit
+            cout << "hit" << endl;
+            cde = cacheMap[{fileName, currentBlock}];
 
-        cacheMap[{fileName, currentBlock}] = new CDE(currentBlock,
-                                                     fileName, b, blockData);
-
-        CDE* cde = cacheMap[{fileName, currentBlock}];
-
-        free(blockData);
-
-
-        // add the new cde (which has count of 1 to CountChain[0]
-        countChain.insert(cde, 1);
-
-        if((int) lru.getSize() < numberOfBlocks) {
-            // there is empty place in cache
-            lru.insert(cde);
-            cde->setIsNew(true);
-        } else {
-            // cache is full, use replacement policy
-            if(numberOfBlocks != 0) {
-                removeFromCache();
-                lru.insert(cde);
+            int readSize = 0;
+            int x = blockSize * currentBlock;
+            if((size_t) newOffset >= cde->getSize() + x) {
+                return readTotal;
+            } else if(newOffset + size < cde->getSize() + x) {
+                readSize = (int) size;
+            } else {
+                readSize = (cde->getSize() + x) - (int) newOffset;
             }
+
+            int inBlockOffset = (int) newOffset - currentBlock * blockSize;
+
+            memcpy(buf + readTotal, cde->getData() + inBlockOffset, (size_t) readSize);
+            countChain.increment(cde);
+            lru.reinsert(cde);
+            readTotal += readSize;
+        } else {
+            // cache miss
+            cout << "miss" << endl;
+            char *blockData = (char *) aligned_alloc(blockSize,
+                                                     blockSize * sizeof(char));
+            newOffset -= newOffset%blockSize;
+            b = pread((int) fi->fh, (void *) blockData, (size_t) blockSize,
+                       newOffset);
+            if (b < 0) {
+                cout << "errno: " << errno << endl;
+            } else if (b == 0) {
+                free(blockData);
+                return readTotal;
+            }
+            cacheMap[{fileName, currentBlock}] = new CDE(currentBlock,
+                                                         fileName, b,
+                                                         blockData);
+
+            CDE *cde = cacheMap[{fileName, currentBlock}];
+
+            free(blockData);
+
+            // add the new cde (which has count of 1 to CountChain[0]
+            countChain.insert(cde, 1);
+
+            if ((int) lru.getSize() < numberOfBlocks) {
+                // there is empty place in cache
+                lru.insert(cde);
+                cde->setIsNew(true);
+            } else {
+                // cache is full, use replacement policy
+                if (numberOfBlocks != 0) {
+                    removeFromCache();
+                    lru.insert(cde);
+                }
+            }
+/*
+            size_t inBlockOffset = (size_t) newOffset%blockSize;
+
+            size_t y = b - inBlockOffset;
+            size_t z = readTotal + y;
+            if(z > size) {
+                y = size - readTotal;
+            }
+
+            memcpy(buf + readTotal, cde->getData() + inBlockOffset,
+                   (size_t) y);
+*/
+            int readSize = 0;
+            int x = blockSize * currentBlock;
+            if((size_t) newOffset >= cde->getSize() + x) {
+                return readTotal;
+            } else if(newOffset + size < cde->getSize() + x) {
+                readSize = (int) size;
+            } else {
+                readSize = (cde->getSize() + x) - (int) newOffset;
+            }
+            cout << readSize << endl;
+            int inBlockOffset = (int) newOffset - currentBlock * blockSize;
+
+            memcpy(buf + readTotal, cde->getData() + inBlockOffset, (size_t) readSize);
+            readTotal += readSize;
+            ++currentBlock;
         }
-        memcpy(buf, cde->getData(), (size_t) b);
-        //cout << "RETURN: " << b << endl;
-        return (int) b;
+        firstRead = false;
     }
 }
 
@@ -547,6 +559,7 @@ For your task, the function needs to return NULL always
  * Changed in version 2.6
  */
 void *caching_init(struct fuse_conn_info *conn){
+    writeToLog("init");
 	return NULL;
 }
 
@@ -562,6 +575,7 @@ If a failure occurs in this function, do nothing
  * Introduced in version 2.3
  */
 void caching_destroy(void *userdata){
+    writeToLog("destroy");
 }
 
 
@@ -581,6 +595,13 @@ void caching_destroy(void *userdata){
  */
 int caching_ioctl (const char *, int cmd, void *arg,
 		struct fuse_file_info *, unsigned int flags, void *data){
+    CDE * cde = lru.getTail();
+    while(cde != nullptr) {
+        writeToLog(cde->getFileName() + " " +
+                           to_string((cde->getBlockId() + 1)) + " " +
+                           to_string(cde->getCount()));
+        cde = cde->getPrev();
+    }
 	return 0;
 }
 
@@ -660,8 +681,8 @@ int main(int argc, char* argv[]){
 		argv[i] = NULL;
 	}
 	argv[2] = (char*) "-s";
-    //argv[3] = (char*) "-f";
-	argc = 3;
+    argv[3] = (char*) "-f";
+	argc = 4;
 
 
 	int fuse_stat = fuse_main(argc, argv, &caching_oper, NULL);
