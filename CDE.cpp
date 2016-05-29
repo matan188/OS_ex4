@@ -4,13 +4,13 @@
 
 CDE::CDE(int blockId, string fileName, size_t dataSize,
          char * blockData) {
-    cout << "HE<<" << endl;
+    cout << "\tCDE CONSTRACTOR START" << endl;
     _dataSize = dataSize;
     _fileName = fileName;
     _blockId = blockId;
     _blockData = (char *) malloc(sizeof(char) * dataSize);
     if(_blockData == NULL) {
-        cout << "HERE!!!!!!" << endl;
+        cout << "malloc ERROR" << endl;
     }
     memcpy(_blockData, blockData, dataSize);
     _isOld = false;
@@ -20,6 +20,7 @@ CDE::CDE(int blockId, string fileName, size_t dataSize,
     _countPrev = nullptr;
     _next = nullptr;
     _prev = nullptr;
+    cout << "\tCDE CONSTRACTOR FINISH" << endl;
 };
 
 CDE::~CDE() {
