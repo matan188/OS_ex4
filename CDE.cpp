@@ -1,10 +1,17 @@
 #include <cstring>
 #include "CDE.h"
+#include <iostream>
 
 CDE::CDE(int blockId, string fileName, size_t dataSize,
-         char * blockData): _blockId(blockId), _fileName(fileName),
-                            _dataSize(dataSize) {
-    _blockData = (char *) malloc(sizeof(char)*dataSize);
+         char * blockData) {
+    cout << "HE<<" << endl;
+    _dataSize = dataSize;
+    _fileName = fileName;
+    _blockId = blockId;
+    _blockData = (char *) malloc(sizeof(char) * dataSize);
+    if(_blockData == NULL) {
+        cout << "HERE!!!!!!" << endl;
+    }
     memcpy(_blockData, blockData, dataSize);
     _isOld = false;
     _isNew = true;
