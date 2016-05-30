@@ -1,0 +1,58 @@
+matanmo, eyalc
+Matan Modai (305097560), Eyal Cohen (301300372)
+EX: 4
+
+FILES:
+CachingFileSystem.cpp - main caching file
+CDE.h - CDE CLASS
+CDE.cpp
+CountChain.h - Count Chain Class
+CountChain.cpp
+LRUStack.h - LRU Stack class
+LRUStack.cpp
+Makefile
+README - this file
+
+
+
+REMARKS:
+
+Design and implementation is exactly as explained in chapter 2.4 in the article:
+"Data Cache Management Using Frequency-Based Replacement"
+
+
+ANSWERS:
+
+1.
+==
+Usually using the cache will be faster, but sometimes the OS saves some of the process’s pages on
+the disk and then when the process tries to retrieve the data, a page fault is encountered. In that
+case, reading the data from the cache involves disk I/O and therefore the access speed is not
+improved.
+
+2.
+==
+When using simpler algorithms, the logic for managing the cache can be implemented on hardware
+level, therefore leaving the CPU free to perform other tasks. However, when using more sophisticated
+algorithms, the logic is performed at the CPU level, therefore making the pages management harder.
+
+3.
+==
+When cache size is 3: 
+A,A,A,A,B,C,D,A,A,A,A,E,F,G,A,A,A,A - LFU is better than LRU because clearly A is used 
+
+A,A,A,A,A,B,C,D,E,B,C,D,E - LRU is better than LFU becase A is used at high frequency at first but
+not at all afterwords.
+
+A,B,C,D,A,B,C,D,A,B,C,D - MRU would be better than LRU and FRU
+
+4.
+==
+Sometimes when using resources, a resource can have high locality frequency, meaning the resource
+will be used a lot in a brief section of the program (e.g loops), but not very much used afterwords.
+In those cases, we wouldn’t want to give this resource too much significance because the frequency
+is only relevant for a short section - high locality frequency. 
+When using the new section, we can have a better sense if the frequency of the resource is local. 
+Using this system, a high frequency count shows that the frequency does not refer only to a small 
+section, and therefore the probability of needing the resource in the future is higher than if it 
+the frequency was local.

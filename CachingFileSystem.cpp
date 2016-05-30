@@ -28,7 +28,8 @@ using namespace std;
 
 #define CMAX 3 // the maximum count list value
 #define USAGE_ERROR "Usage: CachingFileSystem " \
-                    "rootdir mountdir numberOfBlocks fOld fNew\n"
+                    "rootdir mountdir numberOfBlocks fOld fNew"
+
 #define FILE_LOCATION "/.filesystem.log"
 
 struct fuse_operations caching_oper;
@@ -45,12 +46,6 @@ static LRUStack lru;
 static CountChain countChain(CMAX);
 static int numberOfBlocks;
 
-//TODO change log filename (remember the DOT)
-//TODO clear debug prints
-//TODO -Wextra to makefile
-//TODO rename a directory
-//TODO cache by realpath?
-
 std::ofstream logFile;
 std::stringstream logBuffer;
 
@@ -59,6 +54,16 @@ static int getBlockSize() {
     struct stat fi;
     stat("/tmp", &fi);
     return (int) fi.st_blksize;
+}
+
+static bool isLogFile(const char *path) {
+    string logFile("/.filesystem.log");
+    string str(path);
+
+    if(str.compare(logFile) != 0) {
+        return false;
+    }
+    return true;
 }
 
 /* Build absolute path from relative */
@@ -95,6 +100,11 @@ bool isInputParamsValid(int argc, char* argv[]) {
         } else if(stat(mountdir, &sb) != 0 || !S_ISDIR(sb.st_mode)) {
             usage_error = true;
         }
+
+        if((int)(numberOfBlocks*fOld) == 0 || (int)(numberOfBlocks*fNew) == 0) {
+            usage_error = true;
+        }
+
     }
     if(usage_error) {
         cout << USAGE_ERROR << endl;
@@ -125,13 +135,27 @@ void writeToLog(string msg) {
         sysError("time");
     }
 
-    //cout << ">> " << msg << endl;
-
     logFile << t << " " << msg << "\n";
-    logFile.close();
     if(logFile.fail()) {
         sysError("close");
     }
+    logFile.close();
+}
+
+/**
+ * Write commands to log.
+ */
+void writeToLogIOCTL(string msg) {
+    logFile.open(logPath, std::ios_base::app);
+    if(logFile.fail()) {
+        sysError("open");
+    }
+
+    logFile << msg << "\n";
+    if(logFile.fail()) {
+        sysError("close");
+    }
+    logFile.close();
 }
 
 
@@ -161,6 +185,11 @@ void removeFromCache() {
  */
 int caching_getattr(const char *path, struct stat *statbuf){
     writeToLog("getattr");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     char fpath[PATH_MAX];
     buildPath(fpath, path);
     int ret = stat(fpath, statbuf);
@@ -185,6 +214,11 @@ int caching_getattr(const char *path, struct stat *statbuf){
 int caching_fgetattr(const char *path, struct stat *statbuf, 
 					struct fuse_file_info *fi){
     writeToLog("fgetattr");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     int ret = fstat((int) fi->fh, statbuf);
     if(ret != 0) {
         return -errno;
@@ -206,6 +240,11 @@ int caching_fgetattr(const char *path, struct stat *statbuf,
 int caching_access(const char *path, int mask)
 {
     writeToLog("access");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     char fpath[PATH_MAX];
     buildPath(fpath, path);
 
@@ -232,6 +271,11 @@ int caching_access(const char *path, int mask)
  */
 int caching_open(const char *path, struct fuse_file_info *fi){
     writeToLog("open");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     fi->direct_io = 1;
     char fpath[PATH_MAX];
     buildPath(fpath, path);
@@ -275,7 +319,11 @@ int caching_open(const char *path, struct fuse_file_info *fi){
 int caching_read(const char *path, char *buf, size_t size, 
 				off_t offset, struct fuse_file_info *fi){
     writeToLog("read");
-    //cout << size << endl;
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     int currentBlock = (int) offset / blockSize;
     CDE * cde;
     ssize_t b = 0;
@@ -285,12 +333,9 @@ int caching_read(const char *path, char *buf, size_t size,
     bool firstRead = true;
     //TODO what if offset + size > file_size?
     while(true) { // will end when pread returns 0
-        //cout << "\tWHILE START: currentBlock " << currentBlock << endl;
+
         newOffset = offset + (off_t) readTotal;
-        //cout << "newOffset " << newOffset << endl;
-        //cout << "readTotal " << readTotal << endl;
         if(newOffset%blockSize != 0 && !firstRead){
-            //cout << "\tRETURN1 >> readTotal" << readTotal << endl;
             return readTotal;
         }
 
@@ -298,35 +343,25 @@ int caching_read(const char *path, char *buf, size_t size,
 
         if(cacheMap.count({fileName, currentBlock}) > 0) {
             // cache hit
-            //cout << "\thit"<< endl;
             cde = cacheMap[{fileName, currentBlock}];
 
             int readSize = 0;
             int x = blockSize * currentBlock;
-            if(readTotal == size) {
-                cout << "RETURN4 >> readTotal: " << readTotal << endl;
+            if(readTotal == (int) size) {
                 return readTotal;
             } else if((size_t) newOffset >= cde->getSize() + x) {
-                cout << "RETURN3 >> readTotal: " << readTotal << endl;
                 return readTotal;
             } else if(newOffset + size < cde->getSize() + x) {
-                cout << "HERE1 >> size: " << size << endl;
                 readSize = (int) size;
             } else {
                 readSize = (cde->getSize() + x) - (int) newOffset;
-                cout << "HERE2 >> readSize: " << readSize << endl;
             }
 
-            if(size <= readTotal + readSize) {
+            if((int) size <= readTotal + readSize) {
                 readSize = size - readTotal;
-                cout << "HERE0 >> readSize: " << readSize << endl;
             }
 
             int inBlockOffset = (int) newOffset - currentBlock * blockSize;
-
-            cout << "readTotal " << readTotal << endl;
-            cout << "inBlockOffset " << inBlockOffset << endl;
-            cout << "readSize " << readSize << endl;
 
             memcpy(buf + readTotal, cde->getData() + inBlockOffset,
                    (size_t) readSize);
@@ -336,7 +371,9 @@ int caching_read(const char *path, char *buf, size_t size,
 
         } else {
             // cache miss
-            //cout << "\tmiss"<< endl;
+            if(readTotal == (int) size) {
+                return readTotal;
+            }
             char *blockData = (char *) aligned_alloc(blockSize,
                                                      blockSize * sizeof(char));
             off_t tmpOffset = newOffset - newOffset%blockSize;
@@ -344,10 +381,9 @@ int caching_read(const char *path, char *buf, size_t size,
                       tmpOffset);
 
             if (b < 0) {
-                //cout << "errno: " << errno << endl;
+                cout << -errno << endl;
             } else if (b == 0) {
                 free(blockData);
-                //cout << "RETURN2 >> readTotal " << readTotal << endl;
                 return readTotal;
             }
 
@@ -357,9 +393,6 @@ int caching_read(const char *path, char *buf, size_t size,
                                                          blockData);
             CDE *cde = cacheMap[{fileName, currentBlock}];
 
-            //cout << "b " << b << endl;
-            //CDE * cde = new CDE(currentBlock, fileName, b, blockData);
-            //cout << "02"<< endl;
             free(blockData);
             // add the new cde (which has count of 1 to CountChain[0]
             countChain.insert(cde, 1);
@@ -375,36 +408,21 @@ int caching_read(const char *path, char *buf, size_t size,
                 }
             }
 
-            cout << "size " << size << endl;
-            cout << "readTotal " << readTotal << endl;
-            cout << "cde->getSize() " << cde->getSize() << endl;
-
             int readSize = 0;
             int x = blockSize * currentBlock;
-            if(readTotal == size) {
-                cout << "RETURN4 >> readTotal: " << readTotal << endl;
-                return readTotal;
-            } else if((size_t) newOffset >= cde->getSize() + x) {
-                cout << "RETURN3 >> readTotal: " << readTotal << endl;
+            if((size_t) newOffset >= cde->getSize() + x) {
                 return readTotal;
             } else if(newOffset + size < cde->getSize() + x) {
-                cout << "HERE1 >> size: " << size << endl;
                 readSize = (int) size;
             } else {
                 readSize = (cde->getSize() + x) - (int) newOffset;
-                cout << "HERE2 >> readSize: " << readSize << endl;
             }
 
-            if(size <= readTotal + readSize) {
+            if((int) size <= readTotal + readSize) {
                 readSize = size - readTotal;
-                cout << "HERE0 >> readSize: " << readSize << endl;
             }
 
             int inBlockOffset = (int) newOffset - currentBlock * blockSize;
-
-            cout << "readTotal " << readTotal << endl;
-            cout << "inBlockOffset " << inBlockOffset << endl;
-            cout << "readSize " << readSize << endl;
 
             memcpy(buf + readTotal, cde->getData() + inBlockOffset,
                    (size_t) readSize);
@@ -413,7 +431,6 @@ int caching_read(const char *path, char *buf, size_t size,
         }
         currentBlock++;
         firstRead = false;
-        //cout << "\tWHILE END" << endl;
     }
 }
 
@@ -443,6 +460,11 @@ int caching_read(const char *path, char *buf, size_t size,
 int caching_flush(const char *path, struct fuse_file_info *fi)
 {
     writeToLog("flush");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     return 0;
 }
 
@@ -462,6 +484,11 @@ int caching_flush(const char *path, struct fuse_file_info *fi)
  */
 int caching_release(const char *path, struct fuse_file_info *fi){
     writeToLog("release");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     int ret = close(fi->fh);
     if(ret != 0) {
         return -errno;
@@ -478,6 +505,10 @@ int caching_release(const char *path, struct fuse_file_info *fi){
  */
 int caching_opendir(const char *path, struct fuse_file_info *fi){
     writeToLog("opendir");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
 
     DIR *dp;
     int ret = 0;
@@ -511,6 +542,7 @@ int caching_readdir(const char *path, void *buf,
 					fuse_fill_dir_t filler, 
 					off_t offset, struct fuse_file_info *fi){
     writeToLog("readdir");
+
     int ret = 0;
     DIR *dp;
     struct dirent *de;
@@ -522,10 +554,22 @@ int caching_readdir(const char *path, void *buf,
         return -errno;
     }
 
+    string logFile("/");
+    string str(path);
+    bool isMountDir = false;
+    if(str.compare(logFile) == 0) {
+        isMountDir = true;
+    }
+
     do {
-        if(filler(buf, de->d_name, NULL, 0) != 0) {
-            return -ENOMEM;
+        if(!strcmp(de->d_name, ".filesystem.log") && isMountDir) {
+            // continue
+        } else {
+            if(filler(buf, de->d_name, NULL, 0) != 0) {
+                return -ENOMEM;
+            }
         }
+
     } while((de = readdir(dp)) != NULL);
 
 	return ret;
@@ -537,6 +581,11 @@ int caching_readdir(const char *path, void *buf,
  */
 int caching_releasedir(const char *path, struct fuse_file_info *fi){
     writeToLog("releasedir");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
+
     int ret = closedir((DIR *) fi->fh);
     if(ret != 0) {
         return -errno;
@@ -547,6 +596,10 @@ int caching_releasedir(const char *path, struct fuse_file_info *fi){
 /** Rename a file */
 int caching_rename(const char *path, const char *newpath){
     writeToLog("rename");
+
+    if(isLogFile(path)) {
+        return -ENOENT;
+    }
 
     char fpath[PATH_MAX];
     char fnewpath[PATH_MAX];
@@ -564,12 +617,11 @@ int caching_rename(const char *path, const char *newpath){
     while(cde != nullptr) {
         string fileName = cde->getFileName();
         int pos = fileName.find(string(path));
-        if(pos == 0 && (fileName[string(path).length() - 1] == '/' ||
+        if(pos == 0 && (fileName[string(path).length()] == '/' ||
                 fileName.length() == string(path).length())) {
 
             string suffix = fileName.substr(string(path).length(),
                                             fileName.length());
-
             string realNewPath = string(newpath) + suffix;
             cde->setFileName(realNewPath);
             cacheMap[{realNewPath, cde->getBlockId()}] = cde;
@@ -613,6 +665,7 @@ If a failure occurs in this function, do nothing
  */
 void caching_destroy(void *userdata){
     writeToLog("destroy");
+    //logFile.close();
 }
 
 
@@ -632,13 +685,16 @@ void caching_destroy(void *userdata){
  */
 int caching_ioctl (const char *, int cmd, void *arg,
 		struct fuse_file_info *, unsigned int flags, void *data){
+    writeToLog("ioctl");
+
     CDE * cde = lru.getTail();
     while(cde != nullptr) {
-        writeToLog(cde->getFileName() + " " +
+        writeToLogIOCTL(cde->getFileName().substr(1) + " " +
                            to_string((cde->getBlockId() + 1)) + " " +
                            to_string(cde->getCount()));
         cde = cde->getPrev();
     }
+
 	return 0;
 }
 
@@ -693,7 +749,7 @@ int main(int argc, char* argv[]){
 
     // Check input parameters
     if(!isInputParamsValid(argc, argv)) {
-        exit(0);
+        exit(1);
     }
 
 	init_caching_oper();
@@ -710,6 +766,8 @@ int main(int argc, char* argv[]){
     lru.setOldIndex(numberOfBlocks - (int) (atof(argv[4]) *
             numberOfBlocks) + 1);
 
+
+    //logFile.open(logPath, std::ios_base::app); // create/open log file
 
     // arrange args for fuse_main call
 	argv[1] = argv[2];

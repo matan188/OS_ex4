@@ -25,8 +25,6 @@ LRUStack::~LRUStack() {
 
 void LRUStack::insert(CDE * newCde) {
 
-    //cout << "\t<< lru insert >>" << endl;
-
     if(_size == 0) {
         _tail = newCde;
     } else {
@@ -48,11 +46,9 @@ void LRUStack::insert(CDE * newCde) {
         _newBoundary->setIsNew(false);
         _newBoundary = _newBoundary->getPrev();
     }
-    //printLru();
 };
 
 void LRUStack::remove(CDE * cde) {
-    //cout << "\t<< lru remove >>" << endl;
     _oldBoundary = cde->getPrev(); // prev because insert is coming
     _oldBoundary->setIsOld(true);
     _oldBoundary->setIsNew(false);
@@ -71,11 +67,9 @@ void LRUStack::remove(CDE * cde) {
         cde->getNext()->setPrev(cde->getPrev());
     }
     --_size;
-    //printLru();
 };
 
 void LRUStack::reinsert(CDE * cde) {
-    //cout << "\t<< lru reinsert >>" << endl;
 
     // update new boundary
     if(cde->getIsNew()) {
@@ -117,16 +111,13 @@ void LRUStack::reinsert(CDE * cde) {
         _head = cde;
         _head->setPrev(nullptr);
     }
-    //printLru();
 };
 
 void LRUStack::printLru() {
     CDE * cde = _head;
     if( _head != nullptr && _tail != nullptr) {
-        cout << "\thead: <" << _head->getFileName() << ","
-            << _head->getBlockId() << ">" << endl;
-        cout << "\ttail: <" << _tail->getFileName() << ","
-            << _tail->getBlockId() << ">" << endl;
+        cout << "\thead: <" << _head->getFileName() << "," << _head->getBlockId() << ">" << endl;
+        cout << "\ttail: <" << _tail->getFileName() << "," << _tail->getBlockId() << ">" << endl;
         cout << "\t";
     }
 
@@ -138,8 +129,7 @@ void LRUStack::printLru() {
         if(cde == _oldBoundary) {
             cout << "ob, ";
         }
-        cout << cde->getFileName() << "," << cde->getBlockId() << ","
-            << cde->getIsNew() <<"," << cde->getIsOld() << ">" << " -> ";
+        cout << cde->getFileName() << "," << cde->getBlockId() << "," << cde->getIsNew() <<"," << cde->getIsOld() << ">" << " -> ";
         cde = cde->getNext();
     }
     cout << endl;

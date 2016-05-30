@@ -4,7 +4,6 @@
 
 CDE::CDE(int blockId, string fileName, size_t dataSize,
          char * blockData) {
-    //cout << "\tCDE CONSTRACTOR START" << endl;
     _dataSize = dataSize;
     _fileName = fileName;
     _blockId = blockId;
@@ -20,7 +19,6 @@ CDE::CDE(int blockId, string fileName, size_t dataSize,
     _countPrev = nullptr;
     _next = nullptr;
     _prev = nullptr;
-    //cout << "\tCDE CONSTRACTOR FINISH" << endl;
 };
 
 CDE::~CDE() {

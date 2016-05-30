@@ -23,7 +23,7 @@ all: CDE.cpp LRUStack.cpp CountChain.cpp CachingFileSystem.cpp
 	g++ -Wall -std=c++11 $(CPPFILES) $(PKGFLAGS) -o CachingFileSystem
 
 clean:
-	rm *.a *.o *.tar
+	rm *.o *.tar
 
 tar:
 	$(TAR) $(TARFLAGS) $(TARNAME) $(TARSRCS)
